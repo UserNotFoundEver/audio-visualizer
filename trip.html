@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+    body, html {
+        height: 100%;
+        margin: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: black;
+        overflow: hidden;
+    }
+
+    .orb {
+        width: 200px;
+        height: 200px;
+        border-radius: 50%;
+        position: relative;
+        box-shadow: 0 0 50px rgba(255, 255, 255, 0.75);
+        background: conic-gradient(from 0deg at center, #ff0099, #6600ff, #ff0099, #6600ff);
+        transition: background-color 0.2s ease;
+        animation: rotate 20s linear infinite, pulse 2s ease-in-out infinite alternate;
+    }
+
+    @keyframes rotate {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+</style>
+</head>
+<body>
+<input type="file" id="audioFile" accept="audio/*">
+<div class="orb"></div>
+
+<script>
+    const fileInput = document.getElementById('audioFile');
+    const orb = document.querySelector('.orb');
+    let audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    let analyser = audioContext.createAnalyser();
+    let source;
+
+    fileInput.addEventListener('change', function() {
+        const files = this.files;
+        if (files.length === 0) return;
+
+        const file = files[0];
+        if (source) source.disconnect();  // Disconnect existing source if any
+
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            audioContext.decodeAudioData(e.target.result, function(buffer) {
+                source = audioContext.createBufferSource();
+                source.buffer = buffer;
+                source.connect(analyser);
+                analyser.connect(audioContext.destination);
+                source.start(0);
+                animateOrb();
+            }, function(e) { console.error("Error with decoding audio data", e.err); });
+        };
+        reader.readAsArrayBuffer(file);
+    });
+
+    function animateOrb() {
+        analyser.fftSize = 256;
+        const frequencyData = new Uint8Array(analyser.frequencyBinCount);
+
+        function updateOrb() {
+            requestAnimationFrame(updateOrb);
+            analyser.getByteFrequencyData(frequencyData);
+            let sum = frequencyData.reduce((a, b) => a + b, 0);
+            let average = sum / frequencyData.length;
+            let scale = Math.max(1, average / 50);
+            let colorIndex = Math.floor(average) % 360;  // Generate a color index based on the average
+            orb.style.transform = `scale(${scale}) rotate(${colorIndex}deg)`;
+            orb.style.background = `conic-gradient(from ${colorIndex}deg at center, #ff0099, #6600ff, #ff0099, #6600ff)`;
+        }
+        updateOrb();
+    }
+</script>
+</body>
+</html>
