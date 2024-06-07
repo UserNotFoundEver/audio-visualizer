@@ -1,55 +1,34 @@
-const canvas = document.getElementById('fractalCanvas');
-const ctx = canvas.getContext('2d');
-canvas.width = window.innerWidth;
-canvas.height = window.innerHeight;
+// fractalWorker.js
+self.onmessage = function(e) {
+    const [width, height, offsetX, offsetY, scale, frequencyData] = e.data;
+    const imageData = new Uint8Array(width * height * 4);
+    const maxIter = 100;
 
-const worker = new Worker('fractalWorker.js');
+    for (let x = 0; x < width; x++) {
+        for (let y = 0; y < height; y++) {
+            let real = (x - width / 2 + offsetX) / (0.5 * scale * width);
+            let imag = (y - height / 2 + offsetY) / (0.5 * scale * height);
+            let n = 0;
+            let r = real, i = imag;
 
-let offsetX = 0;
-let offsetY = 0;
-let scale = 1;
-let mousePressed = false;
-let lastX = 0;
-let lastY = 0;
+            while (n < maxIter) {
+                let r2 = r * r - i * i + real;
+                i = 2 * r * i + imag;
+                r = r2;
 
-canvas.addEventListener('mousedown', (e) => {
-    mousePressed = true;
-    lastX = e.clientX;
-    lastY = e.clientY;
-});
+                if (r * r + i * i > 4) break;
+                n++;
+            }
 
-canvas.addEventListener('mouseup', () => {
-    mousePressed = false;
-});
+            const pixelIndex = (x + y * width) * 4;
+            const colorFactor = frequencyData[n % frequencyData.length] / 255;
 
-canvas.addEventListener('mousemove', (e) => {
-    if (mousePressed) {
-        offsetX += (e.clientX - lastX);
-        offsetY += (e.clientY - lastY);
-        lastX = e.clientX;
-        lastY = e.clientY;
-        updateFractal();
+            imageData[pixelIndex] = colorFactor * 255;         // Red
+            imageData[pixelIndex + 1] = colorFactor * 200;     // Green
+            imageData[pixelIndex + 2] = colorFactor * 150;     // Blue
+            imageData[pixelIndex + 3] = 255;                   // Alpha
+        }
     }
-});
 
-canvas.addEventListener('wheel', (e) => {
-    e.preventDefault();
-    const scaleFactor = 1.1;
-    if (e.deltaY < 0) {
-        scale *= scaleFactor;
-    } else {
-        scale /= scaleFactor;
-    }
-    updateFractal();
-});
-
-worker.onmessage = function(e) {
-    const imageData = new ImageData(new Uint8ClampedArray(e.data), canvas.width, canvas.height);
-    ctx.putImageData(imageData, 0, 0);
+    self.postMessage(imageData);
 };
-
-function updateFractal() {
-    worker.postMessage([canvas.width, canvas.height, offsetX, offsetY, scale]);
-}
-
-updateFractal();
